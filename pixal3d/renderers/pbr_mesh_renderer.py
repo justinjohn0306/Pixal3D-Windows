@@ -150,7 +150,7 @@ def screen_space_ambient_occlusion(
         proj_u = (sample_pos[..., 0] * fx / z_safe) + cx
         proj_v = (sample_pos[..., 1] * fy / z_safe) + cy
         grid = torch.stack([proj_u, proj_v], dim=-1).unsqueeze(0)
-        geo_z = F.grid_sample(depth_feat, grid, mode='nearest', padding_mode='border').squeeze()
+        geo_z = F.grid_sample(depth_feat, grid, mode='nearest', padding_mode='border', align_corners=False).squeeze()
         range_check = torch.abs(geo_z - sample_z) < radius
         is_occluded = (geo_z <= sample_z - bias) & range_check
         occlusion += is_occluded.float()

@@ -1,4 +1,6 @@
 import os
+import sys
+import warnings
 import argparse
 import math
 import time
@@ -8,8 +10,15 @@ import cv2
 from PIL import Image
 
 os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+if sys.platform != 'win32':
+    # expandable_segments is not supported by the Windows CUDA allocator
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 os.environ.setdefault("ATTN_BACKEND", "flash_attn")
+
+# Silence known deprecation warnings from pinned third-party packages
+warnings.filterwarnings("ignore", category=FutureWarning, module=r"timm\..*")
+warnings.filterwarnings("ignore", category=FutureWarning, module=r"utils3d\..*")
+warnings.filterwarnings("ignore", category=UserWarning, module=r"cumesh.*")
 os.environ["FLEX_GEMM_AUTOTUNE_CACHE_PATH"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'autotune_cache.json')
 os.environ["FLEX_GEMM_AUTOTUNER_VERBOSE"] = '1'
 

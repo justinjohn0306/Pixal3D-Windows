@@ -1,4 +1,6 @@
 import os
+import sys
+import warnings
 import subprocess
 import argparse
 import math
@@ -12,7 +14,7 @@ import io
 import json
 from datetime import datetime
 from typing import *
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 import threading
 try:
@@ -25,15 +27,24 @@ except ImportError:
 init_lock = threading.Lock()
 
 os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '1'
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+if sys.platform != 'win32':
+    # expandable_segments is not supported by the Windows CUDA allocator
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 os.environ.setdefault("ATTN_BACKEND", "flash_attn")
 os.environ["FLEX_GEMM_AUTOTUNE_CACHE_PATH"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'autotune_cache.json')
 os.environ["FLEX_GEMM_AUTOTUNER_VERBOSE"] = '1'
+
+# Silence known deprecation warnings from pinned third-party packages
+warnings.filterwarnings("ignore", category=FutureWarning, module=r"timm\..*")
+warnings.filterwarnings("ignore", category=FutureWarning, module=r"utils3d\..*")
+warnings.filterwarnings("ignore", category=UserWarning, module=r"cumesh.*")
+warnings.filterwarnings("ignore", message=r".*HTTP_422_UNPROCESSABLE_ENTITY.*")
 
 import spaces
 from gradio import Server
 from gradio import processing_utils as _gr_processing_utils
 from gradio.data_classes import FileData
+from gradio.exceptions import Error as GradioError
 
 # Running locally (not on HF Spaces): allow the frontend's file references to
 # resolve back to this server, which gradio's SSRF guard otherwise rejects.
@@ -377,7 +388,10 @@ async def progress_poll(request: Request):
 @spaces.GPU(duration=30)
 def preprocess(image: FileData) -> FileData:
     init_models()
-    img = Image.open(image["path"])
+    try:
+        img = Image.open(image["path"])
+    except UnidentifiedImageError:
+        raise GradioError("Could not read the uploaded file as an image.")
     processed = pipeline.preprocess_image(img)
     out_path = os.path.join(TMP_DIR, f"preprocessed_{int(time.time()*1000)}.png")
     processed.save(out_path)
@@ -552,11 +566,17 @@ if __name__ == "__main__":
     if args.low_vram:
         LOW_VRAM = True
 
-    # Re-install utils3d as in original app.py
-    subprocess.run([
-        sys.executable, "-m", "pip", "install", "--force-reinstall", "--no-deps",
-        "https://github.com/LDYang694/Storages/releases/download/20260430/utils3d-0.0.2-py3-none-any.whl"
-    ], check=True)
+    # Re-install utils3d as in original app.py (skip when the pinned version is already present)
+    try:
+        from importlib.metadata import version
+        utils3d_pinned = version("utils3d") == "0.0.2"
+    except Exception:
+        utils3d_pinned = False
+    if not utils3d_pinned:
+        subprocess.run([
+            sys.executable, "-m", "pip", "install", "--force-reinstall", "--no-deps",
+            "https://github.com/LDYang694/Storages/releases/download/20260430/utils3d-0.0.2-py3-none-any.whl"
+        ], check=True)
     
     # Pre-initialize models before launching the server
     init_models()

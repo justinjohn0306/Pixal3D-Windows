@@ -1349,9 +1349,15 @@
                 const div = document.createElement('div');
                 div.className = 'example-item';
                 div.innerHTML = `<img src="${path}" draggable="false">`;
+                div.querySelector('img').onerror = () => div.remove();
                 div.onclick = async () => {
                     showLoading();
                     const res = await fetch(path);
+                    if (!res.ok) {
+                        hideLoading();
+                        showToast("Example image not available.");
+                        return;
+                    }
                     const blob = await res.blob();
                     const ext = path.split('.').pop().toLowerCase();
                     const mimeMap = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
