@@ -32,7 +32,12 @@ os.environ["FLEX_GEMM_AUTOTUNER_VERBOSE"] = '1'
 
 import spaces
 from gradio import Server
+from gradio import processing_utils as _gr_processing_utils
 from gradio.data_classes import FileData
+
+# Running locally (not on HF Spaces): allow the frontend's file references to
+# resolve back to this server, which gradio's SSRF guard otherwise rejects.
+_gr_processing_utils.PUBLIC_HOSTNAME_WHITELIST.extend(["127.0.0.1", "localhost", "0.0.0.0"])
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -556,4 +561,4 @@ if __name__ == "__main__":
     # Pre-initialize models before launching the server
     init_models()
     
-    app.launch(show_error=True, share=True)
+    app.launch(show_error=True, share=os.environ.get("GRADIO_SHARE", "0") == "1")
