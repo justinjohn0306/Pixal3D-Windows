@@ -98,7 +98,7 @@ conda activate pixal3d
 python setup_windows.py
 ```
 
-The setup script installs PyTorch 2.10 (cu130), prebuilt Windows wheels for all CUDA extensions (FlexGEMM, CuMesh, O-Voxel, FlashAttention, NATTEN), compiles [nvdiffrast](https://github.com/NVlabs/nvdiffrast) against your local MSVC, and applies the small compatibility patches Windows needs.
+The setup script installs PyTorch 2.10 (cu130), prebuilt Windows wheels for all CUDA extensions (FlexGEMM, CuMesh, O-Voxel, FlashAttention, NATTEN), compiles [nvdiffrast](https://github.com/NVlabs/nvdiffrast) and [nvdiffrec](https://github.com/JeffreyXiang/nvdiffrec) against your local MSVC, and applies the small compatibility patches Windows needs.
 
 Then use the provided launchers — they configure the attention backend, OpenEXR support, and the MSVC environment automatically:
 

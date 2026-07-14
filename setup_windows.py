@@ -165,16 +165,20 @@ def msvc_env():
 
 
 def install_nvdiffrast():
-    print("[Setup] Compiling nvdiffrast (requires MSVC + CUDA toolkit)...")
+    print("[Setup] Compiling nvdiffrast and nvdiffrec (requires MSVC + CUDA toolkit)...")
     pip("ninja")
-    pip("--no-build-isolation", "git+https://github.com/NVlabs/nvdiffrast.git", env=msvc_env())
+    env = msvc_env()
+    pip("--no-build-isolation", "git+https://github.com/NVlabs/nvdiffrast.git", env=env)
+    # nvdiffrec_render: PBR shading for preview video rendering (TRELLIS.2's --nvdiffrec extension)
+    pip("--no-build-isolation", "git+https://github.com/JeffreyXiang/nvdiffrec.git@renderutils", env=env)
 
 
 def verify():
     code = (
         "import os; os.environ.setdefault('ATTN_BACKEND', 'flash_attn')\n"
         "import torch, o_voxel, o_voxel.postprocess, cumesh, flex_gemm, "
-        "flex_gemm.ops.grid_sample, nvdiffrast.torch, utils3d, flash_attn, moge\n"
+        "flex_gemm.ops.grid_sample, nvdiffrast.torch, nvdiffrec_render.light, "
+        "utils3d, flash_attn, moge\n"
         "print('[Setup] All imports OK -', torch.__version__, torch.cuda.get_device_name(0))\n"
     )
     subprocess.check_call([sys.executable, "-c", code])
