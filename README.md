@@ -81,6 +81,39 @@ pip install https://github.com/LDYang694/Storages/releases/download/20260430/uti
 
 > **Note**: `requirements-hfdemo.txt` is for the Hugging Face Spaces demo (H-series GPU architecture) and may not be compatible with other architectures.
 
+### Windows Installation (this fork)
+
+This fork runs natively on Windows — no WSL required. Tested on Windows 11 with an RTX 3090 (24 GB, CUDA 13.0).
+
+**Requirements:**
+
+- Python 3.12 (conda recommended)
+- Visual Studio 2022 or later with the *Desktop development with C++* workload
+- CUDA Toolkit 13.x
+- NVIDIA GPU (Ampere or newer)
+
+```bash
+conda create -n pixal3d python=3.12 -y
+conda activate pixal3d
+python setup_windows.py
+```
+
+The setup script installs PyTorch 2.10 (cu130), prebuilt Windows wheels for all CUDA extensions (FlexGEMM, CuMesh, O-Voxel, FlashAttention, NATTEN), compiles [nvdiffrast](https://github.com/NVlabs/nvdiffrast) against your local MSVC, and applies the small compatibility patches Windows needs.
+
+Then use the provided launchers — they configure the attention backend, OpenEXR support, and the MSVC environment automatically:
+
+```bat
+:: CLI inference
+run_inference.bat --image assets\images\0_img.png --output output.glb --low_vram
+
+:: Gradio web demo (http://127.0.0.1:7860)
+run_app.bat
+```
+
+> **Note**: The default background-removal model `briaai/RMBG-2.0` is a gated Hugging Face repo. Either request access and log in with `hf auth login`, or point to an un-gated alternative before launching: `set REMBG_MODEL=1038lab/RMBG-2.0`
+
+> **VRAM**: 24 GB runs the full 1536 pipeline; use `--low_vram` (CLI) or `LOW_VRAM=1` (web demo) for ~10-12 GB peak at 1024 resolution. If FlashAttention gives you trouble, `set ATTN_BACKEND=sdpa` falls back to PyTorch's built-in attention (slower).
+
 ### Usage
 
 #### Inference
@@ -278,6 +311,12 @@ We also thank the following repos for their great contributions:
 - [Direct3D-S2](https://github.com/DreamTechAI/Direct3D-S2)
 - [Trellis](https://github.com/microsoft/TRELLIS)
 - [Trellis.2](https://github.com/microsoft/TRELLIS.2)
+
+The native Windows support in this fork builds on community work:
+
+- [PozzettiAndrea/cuda-wheels](https://github.com/PozzettiAndrea/cuda-wheels) — Windows wheels for FlexGEMM, CuMesh, O-Voxel and FlashAttention
+- [NeilsMabet](https://github.com/NeilsMabet/Natten-0.21.6-Amphere-wheel-windows) and [drbaph](https://huggingface.co/drbaph/NATTEN-0.21.6-torch2100cu130-cp312-cp312-win_amd64) — NATTEN Windows builds
+- [Saganaki22/Pixal3D-ComfyUI](https://github.com/Saganaki22/Pixal3D-ComfyUI) — Windows deployment guides
 
 ## 📄 Citation
 
