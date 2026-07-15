@@ -194,7 +194,7 @@ python rigging.py --input ./output.glb --output ./output_rigged.glb
 
 In the web demo, a **Rig Character** button appears in step 3 (after mesh extraction) whenever a SkinTokens installation is detected. The Pixal3D models are temporarily offloaded to CPU while rigging runs, then restored.
 
-> **Note**: SkinTokens installation on Windows: use a prebuilt flash-attn wheel from [kingbri1/flash-attention](https://github.com/kingbri1/flash-attention/releases) matching its torch/CUDA/Python versions, and `pip install scipy` (missing from its requirements.txt).
+> **Note**: SkinTokens installation on Windows: use a prebuilt flash-attn wheel from [flash-attention-prebuild-wheels](https://mjunya.com/flash-attention-prebuild-wheels) matching its torch/CUDA/Python versions, and `pip install scipy` (missing from its requirements.txt).
 
 ## 🔧 Training
 
