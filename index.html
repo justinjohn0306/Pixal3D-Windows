@@ -735,6 +735,10 @@
                     <i data-lucide="box"></i>
                     Extract Mesh (GLB)
                 </button>
+                <button class="btn btn-outline" id="rig-btn" style="display: none;">
+                    <i data-lucide="bone"></i>
+                    Rig Character
+                </button>
                 <button class="btn btn-outline" id="download-btn" style="display: none; background: rgba(16, 185, 129, 0.1); border-color: var(--accent); color: var(--accent);">
                     <i data-lucide="download"></i>
                     Download Asset
@@ -869,6 +873,10 @@
         let currentFrame = 0;
         const sessionId = crypto.randomUUID();
         let currentStep = 1;
+        let riggingAvailable = false;
+        let extractedGlbPath = null;
+        let isRigging = false;
+        let downloadName = "pixal3d_export.glb";
 
         const MODES = [
             { name: "Normal", key: "normal" },
@@ -886,6 +894,7 @@
                 const cfgResp = await fetch('/app_config');
                 const cfg = await cfgResp.json();
                 document.getElementById('resolution').value = cfg.low_vram ? '1024' : '1536';
+                riggingAvailable = !!cfg.rigging;
             } catch (e) {
                 document.getElementById('resolution').value = '1536';
             }
@@ -915,10 +924,11 @@
             // Buttons
             document.getElementById('generate-btn').onclick = startGeneration;
             document.getElementById('extract-btn').onclick = startExtraction;
+            document.getElementById('rig-btn').onclick = startRigging;
             document.getElementById('download-btn').onclick = () => {
                 const link = document.createElement('a');
                 link.href = document.getElementById('main-3d-viewer').src;
-                link.download = "pixal3d_export.glb";
+                link.download = downloadName;
                 link.click();
             };
 
@@ -929,6 +939,8 @@
                 generationResult = null;
                 currentFrame = 0;
                 currentMode = "shaded_forest";
+                extractedGlbPath = null;
+                downloadName = "pixal3d_export.glb";
 
                 // Reset source preview
                 document.getElementById('source-preview').src = '';
@@ -1072,6 +1084,8 @@
             // Toggle side controls based on step
             document.getElementById('render-controls').style.display = (num >= 2) ? 'block' : 'none';
             document.getElementById('extract-btn').style.display = (num === 2) ? 'flex' : 'none';
+            document.getElementById('rig-btn').style.display =
+                (num === 3 && riggingAvailable && extractedGlbPath) ? 'flex' : 'none';
             document.getElementById('download-btn').style.display = (num === 3) ? 'flex' : 'none';
         }
 
@@ -1080,11 +1094,14 @@
 
             // Clear old preview frames and 3D result
             generationResult = null;
+            extractedGlbPath = null;
+            downloadName = "pixal3d_export.glb";
             document.getElementById('frame-container').innerHTML = '';
             document.getElementById('angle-slider').value = 0;
             document.getElementById('angle-display').textContent = '00';
             resetModelViewer();
             document.getElementById('extract-btn').style.display = 'none';
+            document.getElementById('rig-btn').style.display = 'none';
             document.getElementById('download-btn').style.display = 'none';
 
             // Stay on step 1 during generation
@@ -1271,6 +1288,8 @@
 
                 const result = await client.predict("/extract_glb_api", params);
                 const glbUrl = result.data[0].url;
+                extractedGlbPath = result.data[0].path || null;
+                downloadName = "pixal3d_export.glb";
 
                 stopProgressListener();
 
@@ -1307,6 +1326,57 @@
                 hideLoading();
                 showToast("Extraction failed.");
             }
+        }
+
+        async function startRigging() {
+            if (!extractedGlbPath || isRigging) return;
+            isRigging = true;
+            document.getElementById('rig-btn').disabled = true;
+
+            showLoading();
+            startProgressListener();
+            try {
+                const result = await client.predict("/rig_glb_api", {
+                    glb_path: extractedGlbPath,
+                    session_id: sessionId
+                });
+                const riggedUrl = result.data[0].url;
+
+                stopProgressListener();
+
+                // Load the rigged asset into the viewer; download now serves the rigged file
+                const viewer = resetModelViewer();
+                await new Promise((resolve) => {
+                    let settled = false;
+                    const onLoad = () => {
+                        if (settled) return;
+                        settled = true;
+                        viewer.removeEventListener('load', onLoad);
+                        clearTimeout(timer);
+                        resolve();
+                    };
+                    const timer = setTimeout(() => {
+                        if (settled) return;
+                        settled = true;
+                        viewer.removeEventListener('load', onLoad);
+                        resolve();
+                    }, 30000);
+                    viewer.addEventListener('load', onLoad);
+                    viewer.src = riggedUrl;
+                });
+                viewer.style.visibility = 'visible';
+                downloadName = "pixal3d_export_rigged.glb";
+                hideLoading();
+                showToast("Rigged! Skeleton & skin weights added.");
+            } catch (err) {
+                console.error(err);
+                stopProgressListener();
+                document.getElementById('main-3d-viewer').style.visibility = 'visible';
+                hideLoading();
+                showToast("Rigging failed. See server log for details.");
+            }
+            isRigging = false;
+            document.getElementById('rig-btn').disabled = false;
         }
 
         function loadSamples() {

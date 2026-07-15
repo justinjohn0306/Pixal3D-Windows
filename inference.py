@@ -191,6 +191,7 @@ def run_inference(
     manual_fov: float = -1.0,
     low_vram: bool = False,
     resolution: int = -1,
+    rig: bool = False,
 ):
     # Load models
     pipeline = init_pipeline(model_path, low_vram=low_vram)
@@ -291,6 +292,18 @@ def run_inference(
     glb.export(output_path, extension_webp=True)
     print(f"[Done] GLB saved to: {output_path}")
 
+    if rig:
+        import rigging
+        # SkinTokens runs in its own process and needs ~14 GB VRAM;
+        # free ours first so both fit on the GPU.
+        pipeline.cpu()
+        torch.cuda.empty_cache()
+        base, ext = os.path.splitext(output_path)
+        rigged_path = f"{base}_rigged{ext}"
+        print("[Rigging] Auto-rigging with SkinTokens...")
+        rigging.rig_glb(output_path, rigged_path)
+        print(f"[Done] Rigged GLB saved to: {rigged_path}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Pixal3D Inference: Image to GLB")
@@ -307,6 +320,9 @@ if __name__ == "__main__":
                              "Reduces peak VRAM from ~18GB to ~10-12GB at the cost of slower inference.")
     parser.add_argument("--resolution", type=int, default=-1,
                         help="Pipeline resolution (1024 or 1536). Default: 1024 if --low_vram, else 1536.")
+    parser.add_argument("--rig", action="store_true",
+                        help="Auto-rig the exported GLB (skeleton + skin weights) with SkinTokens. "
+                             "Requires a SkinTokens installation; see the Auto-Rigging section in README.")
 
     args = parser.parse_args()
 
@@ -318,4 +334,5 @@ if __name__ == "__main__":
         model_path=args.model_path,
         low_vram=args.low_vram,
         resolution=args.resolution,
+        rig=args.rig,
     )

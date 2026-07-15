@@ -13,8 +13,13 @@ REM line limit when combined with a long user/conda PATH ("The input line is too
 set "PATH=%PYROOT%;%PYROOT%\Library\bin;%PYROOT%\Scripts;C:\Windows\System32;C:\Windows"
 
 REM MSVC env for any runtime CUDA JIT (triton / torch cpp_extension)
-for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSPATH=%%i"
-if defined VSPATH call "%VSPATH%\VC\Auxiliary\Build\vcvars64.bat" >nul
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist "%VSWHERE%" set "VSWHERE=%ProgramFiles%\Microsoft Visual Studio\Installer\vswhere.exe"
+if exist "%VSWHERE%" for /f "usebackq delims=" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSPATH=%%i"
+REM Fallback: scan default install roots (covers VS 2026+ where vswhere may be absent)
+if not defined VSPATH for /d %%v in ("%ProgramFiles%\Microsoft Visual Studio\*") do for /d %%e in ("%%v\*") do if exist "%%e\VC\Auxiliary\Build\vcvars64.bat" set "VSPATH=%%e"
+if not defined VSPATH for /d %%v in ("%ProgramFiles(x86)%\Microsoft Visual Studio\*") do for /d %%e in ("%%v\*") do if exist "%%e\VC\Auxiliary\Build\vcvars64.bat" set "VSPATH=%%e"
+if defined VSPATH (call "%VSPATH%\VC\Auxiliary\Build\vcvars64.bat" >nul) else echo [Warn] MSVC not found - runtime CUDA JIT (triton/cpp_extension) unavailable
 
 REM Attention backend (flash_attn wheel installed by setup_windows.py; fallback: sdpa)
 if not defined ATTN_BACKEND set ATTN_BACKEND=flash_attn

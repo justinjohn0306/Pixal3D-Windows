@@ -57,6 +57,7 @@ from pixal3d.pipelines import Pixal3DImageTo3DPipeline
 from pixal3d.renderers import EnvMap
 from pixal3d.utils import render_utils
 import o_voxel
+import rigging
 
 # ============================================================================
 # Constants & Defaults
@@ -370,7 +371,7 @@ async def homepage():
 @app.get("/app_config")
 async def get_config():
     """Return server configuration for frontend (e.g. LOW_VRAM mode)."""
-    return JSONResponse({"low_vram": LOW_VRAM})
+    return JSONResponse({"low_vram": LOW_VRAM, "rigging": rigging.rigging_available()})
 
 @app.get("/progress")
 async def progress_poll(request: Request):
@@ -550,6 +551,65 @@ def extract_glb_api(state_path: str, decimation_target: int, texture_size: int, 
     
     out_glb = os.path.join(TMP_DIR, f"result_{int(time.time()*1000)}.glb")
     glb.export(out_glb, extension_webp=True)
+    _finish_progress()
+    return FileData(path=out_glb)
+
+_IMAGE_COND_ATTRS = ['image_cond_model_ss', 'image_cond_model_shape_512',
+                     'image_cond_model_shape_1024', 'image_cond_model_tex_1024']
+
+def _move_resident_models(device: str):
+    """Move the Pixal3D models between GPU and CPU around the rigging subprocess.
+
+    SkinTokens runs in its own process and needs ~14 GB VRAM, which does not
+    fit next to the resident pipeline (~18 GB) on a 24 GB card.
+    """
+    if LOW_VRAM or pipeline is None:
+        return  # low-VRAM mode already keeps models on CPU between stages
+    if device == 'cuda':
+        pipeline.cuda()
+    else:
+        pipeline.cpu()
+    for attr in _IMAGE_COND_ATTRS:
+        m = getattr(pipeline, attr, None)
+        if m is not None:
+            m.to(device)
+    if moge_model is not None:
+        moge_model.to(device)
+    if envmap is not None:
+        for v in envmap.values():
+            v.image = v.image.to(device)
+            if hasattr(v, '_nvdiffrec_envlight'):
+                del v._nvdiffrec_envlight
+    if device == 'cpu':
+        torch.cuda.empty_cache()
+
+@app.api()
+def rig_glb_api(glb_path: str, session_id: str = "") -> FileData:
+    """Auto-rig an extracted GLB (skeleton + skin weights) via SkinTokens."""
+    if not rigging.rigging_available():
+        raise GradioError("Rigging is not available: SkinTokens installation not found.")
+    # The client may hold a Gradio cache copy of the file; resolve by basename
+    # against the server-side TMP_DIR where extract_glb_api wrote the original.
+    glb_name = os.path.basename(glb_path.replace('\\', '/'))
+    if not glb_name.lower().endswith('.glb'):
+        raise GradioError("Invalid GLB path.")
+    glb_path = os.path.join(TMP_DIR, glb_name)
+    if not os.path.isfile(glb_path):
+        raise GradioError("GLB file not found — extract the mesh first.")
+
+    _reset_progress(session_id)
+    _update_progress("Rigging: freeing GPU memory", 0, 1)
+    _move_resident_models('cpu')
+    try:
+        out_glb = os.path.join(TMP_DIR, f"rigged_{int(time.time()*1000)}.glb")
+        rigging.rig_glb(
+            glb_path, out_glb,
+            progress_callback=lambda stage: _update_progress(stage, 0, 1),
+        )
+    except RuntimeError as e:
+        raise GradioError(f"Rigging failed: {e}")
+    finally:
+        _move_resident_models('cuda')
     _finish_progress()
     return FileData(path=out_glb)
 

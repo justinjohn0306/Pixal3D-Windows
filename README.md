@@ -160,6 +160,42 @@ python app.py --low_vram
 # or via environment variable:
 LOW_VRAM=1 python app.py
 ```
+
+### Auto-Rigging (optional)
+
+Generated meshes can be automatically rigged (skeleton + skinning weights) with [SkinTokens](https://github.com/VAST-AI-Research/SkinTokens), producing an animation-ready GLB. SkinTokens runs in its own Python environment and is invoked as a subprocess, so its torch/flash-attn stack never conflicts with Pixal3D's.
+
+**Setup** — clone SkinTokens next to this repo and follow [its installation guide](https://github.com/VAST-AI-Research/SkinTokens#-installation) (needs ~14 GB VRAM at inference):
+
+```bash
+git clone https://github.com/VAST-AI-Research/SkinTokens ../SkinTokens
+# ... install its environment per its README, then download its checkpoints:
+# python download.py --model
+```
+
+If SkinTokens lives elsewhere or uses a non-default environment, point to it explicitly:
+
+```bash
+set SKINTOKENS_DIR=D:\path\to\SkinTokens
+set SKINTOKENS_PYTHON=D:\path\to\envs\SkinTokens\python.exe
+```
+
+Auto-detection looks for a `SkinTokens` directory next to this repo, and a `.venv` inside it or a conda env named `SkinTokens`.
+
+**Usage:**
+
+```bash
+# CLI: writes output.glb plus output_rigged.glb
+python inference.py --image assets/images/0_img.png --output ./output.glb --rig
+
+# Standalone: rig any existing GLB
+python rigging.py --input ./output.glb --output ./output_rigged.glb
+```
+
+In the web demo, a **Rig Character** button appears in step 3 (after mesh extraction) whenever a SkinTokens installation is detected. The Pixal3D models are temporarily offloaded to CPU while rigging runs, then restored.
+
+> **Note**: SkinTokens installation on Windows: use a prebuilt flash-attn wheel from [kingbri1/flash-attention](https://github.com/kingbri1/flash-attention/releases) matching its torch/CUDA/Python versions, and `pip install scipy` (missing from its requirements.txt).
+
 ## 🔧 Training
 
 We provide the full training codebase for reproducing Pixal3D from scratch.
